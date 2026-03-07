@@ -17,11 +17,47 @@
         <span class="nav-icon">📊</span>
         <span>Rekap</span>
       </router-link>
+      <button
+        v-if="deferredPrompt"
+        class="btn btn-sm btn-primary install-btn"
+        @click="installPWA"
+      >
+        📲 Install App
+      </button>
     </div>
   </nav>
 </template>
 
-<script setup></script>
+<script setup>
+import { ref, onMounted } from "vue";
+
+const deferredPrompt = ref(null);
+
+onMounted(() => {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    // Prevent Chrome 67 and earlier from automatically showing the prompt
+    e.preventDefault();
+    // Stash the event so it can be triggered later.
+    deferredPrompt.value = e;
+  });
+});
+
+async function installPWA() {
+  if (!deferredPrompt.value) return;
+
+  // Show the install prompt
+  deferredPrompt.value.prompt();
+
+  // Wait for the user to respond to the prompt
+  const { outcome } = await deferredPrompt.value.userChoice;
+
+  // Optionally, send analytics event with outcome of user choice
+  console.log(`User response to the install prompt: ${outcome}`);
+
+  // We've used the prompt, and can't use it again, throw it away
+  deferredPrompt.value = null;
+}
+</script>
 
 <style scoped>
 .navbar {
@@ -88,5 +124,23 @@
 
 .nav-icon {
   font-size: 1.1rem;
+}
+
+.install-btn {
+  margin-left: 0.5rem;
+  box-shadow: 0 0 10px rgba(255, 159, 67, 0.4);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 159, 67, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(255, 159, 67, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 159, 67, 0);
+  }
 }
 </style>
