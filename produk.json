@@ -1,0 +1,68 @@
+{
+  "store": "DCelup Crispy Chicken",
+  "menu": [
+    {
+      "id": 1,
+      "name": "Ayam Crispy Saus Sadis",
+      "price": 12000,
+      "variants": {
+        "paha_dada_nasi": 16000,
+        "sayap_nasi": 15000
+      }
+    },
+    {
+      "id": 2,
+      "name": "Ayam Crispy Saus Lada Hitam",
+      "price": 12000,
+      "variants": {
+        "paha_dada_nasi": 16000,
+        "sayap_nasi": 15000
+      }
+    },
+    {
+      "id": 3,
+      "name": "Ayam Crispy Saus Keju",
+      "price": 12000,
+      "variants": {
+        "paha_dada_nasi": 16000,
+        "sayap_nasi": 15000
+      }
+    },
+    {
+      "id": 4,
+      "name": "Ayam Crispy Saus Teriyaki",
+      "price": 12000,
+      "variants": {
+        "paha_dada_nasi": 16000,
+        "sayap_nasi": 15000
+      }
+    },
+    {
+      "id": 5,
+      "name": "Ayam Crispy Saus Barbeque",
+      "price": 12000,
+      "variants": {
+        "paha_dada_nasi": 16000,
+        "sayap_nasi": 15000
+      }
+    },
+    {
+      "id": 6,
+      "name": "Ayam Crispy Original + Saus Sachet",
+      "price": 10000,
+      "variants": {
+        "paket_saus": 13000
+      }
+    }
+  ],
+  "extra_menu": [
+    {
+      "name": "Extra Nasi",
+      "price": 4000
+    },
+    {
+      "name": "Extra Saus",
+      "price": 3000
+    }
+  ]
+}
