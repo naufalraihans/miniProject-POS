@@ -1,5 +1,9 @@
 <template>
-  <div class="menu-card glass-card" @click="handleClick">
+  <div
+    class="menu-card glass-card"
+    :class="{ 'is-active': showVariants }"
+    @click="handleClick"
+  >
     <div class="card-header">
       <span class="card-emoji">🍗</span>
       <span class="card-id">#{{ item.id }}</span>
@@ -89,6 +93,11 @@ function selectVariant(vKey, vPrice) {
   position: relative;
   user-select: none;
   animation: scaleIn 0.3s ease;
+  z-index: 1;
+}
+
+.menu-card.is-active {
+  z-index: 20;
 }
 
 .menu-card:active {
