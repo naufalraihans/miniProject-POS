@@ -1,8 +1,29 @@
 {
-  "name": "tempvue",
+  "name": "mini-project-pos",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Hybrid POS app built with Vue, Vite, Capacitor, Firebase, and Bluetooth ESC/POS thermal printing for Android.",
   "type": "module",
+  "keywords": [
+    "pos",
+    "vue",
+    "vite",
+    "capacitor",
+    "android",
+    "firebase",
+    "thermal-printer",
+    "escpos"
+  ],
+  "author": "Naufal Raihan",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/naufalraihans/miniProject-POS.git"
+  },
+  "bugs": {
+    "url": "https://github.com/naufalraihans/miniProject-POS/issues"
+  },
+  "homepage": "https://github.com/naufalraihans/miniProject-POS",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

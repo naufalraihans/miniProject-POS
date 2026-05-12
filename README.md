@@ -24,6 +24,13 @@ This repo is one of my practical portfolio projects focused on a real cashier wo
 - Shared receipt formatter for web and Android
 - Landscape Android experience for cashier usage
 
+## Portfolio Highlights
+
+- Migrated a PWA-style cashier app into a **hybrid Android app** without rewriting the full frontend in native UI
+- Built a **custom Capacitor Android plugin** for Bluetooth classic ESC/POS thermal printing
+- Designed a **platform-aware print architecture** so desktop and Android use different print backends with the same app flow
+- Kept the app usable in both **desktop cashier** and **Android handheld cashier** scenarios
+
 ## Tech Stack
 
 - Vue 3
@@ -110,6 +117,14 @@ APK output:
 android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## Continuous Integration
+
+This repo includes GitHub Actions CI for:
+
+- web build validation
+- Android debug APK build
+- APK artifact upload for every successful workflow run
+
 ## Android Notes
 
 - Android Studio UI is not required for the workflow used in this repo
@@ -133,6 +148,14 @@ The repository intentionally excludes:
 - local SDK / JDK folders
 - downloaded ZIP installers
 - local machine config such as `android/local.properties`
+
+## Suggested GitHub Repo Metadata
+
+- Repository name: `miniProject-POS`
+- Short description:
+  `Hybrid POS app with Vue, Firebase, Capacitor, and Bluetooth thermal printing on Android.`
+- Suggested topics:
+  `vue`, `vite`, `capacitor`, `android`, `firebase`, `pos`, `thermal-printer`, `escpos`
 
 ## Future Improvements
 
