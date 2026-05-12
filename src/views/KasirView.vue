@@ -59,6 +59,43 @@
       <span>{{ toast.icon }}</span>
       <span>{{ toast.message }}</span>
     </div>
+
+    <!-- Receipt Prompt -->
+    <div
+      v-if="showReceiptPrompt && lastTransaction"
+      class="modal-overlay"
+      @click.self="showReceiptPrompt = false"
+    >
+      <div class="modal-content slide-up receipt-modal">
+        <div class="modal-header">
+          <h3 class="modal-title">✅ Transaksi Berhasil</h3>
+          <button class="modal-close" @click="showReceiptPrompt = false">✕</button>
+        </div>
+
+        <div class="receipt-summary">
+          <p>
+            <strong>Waktu:</strong>
+            {{ lastTransaction.date }} {{ lastTransaction.time }}
+          </p>
+          <p>
+            <strong>Total:</strong> {{ formatCurrency(lastTransaction.total) }}
+          </p>
+          <p>
+            <strong>Metode:</strong>
+            {{ lastTransaction.paymentMethod.toUpperCase() }}
+          </p>
+        </div>
+
+        <div class="receipt-actions">
+          <button class="btn btn-secondary" @click="showReceiptPrompt = false">
+            Tutup
+          </button>
+          <button class="btn btn-primary" @click="printLastReceipt">
+            🖨️ Print Struk
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -73,6 +110,8 @@ const menus = ref([]);
 const extras = ref([]);
 const cart = ref([]);
 const showCheckout = ref(false);
+const showReceiptPrompt = ref(false);
+const lastTransaction = ref(null);
 const toast = ref({ show: false, message: "", type: "success", icon: "✅" });
 
 const cartTotal = computed(() =>
@@ -206,14 +245,130 @@ async function handleCheckout(paymentData) {
       }),
     };
 
-    await addDoc(collection(db, "transactions"), transaction);
+    const savedTransaction = await addDoc(collection(db, "transactions"), transaction);
+    lastTransaction.value = { ...transaction, id: savedTransaction.id };
     showCheckout.value = false;
     cart.value = [];
+    showReceiptPrompt.value = true;
     showToast("Transaksi berhasil! 🎉", "success", "✅");
   } catch (e) {
     console.error("Checkout error:", e);
     showToast("Gagal menyimpan transaksi", "error", "❌");
   }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildReceiptHtml(transaction) {
+  const itemsHtml = transaction.items
+    .map((item) => {
+      const itemName = item.variant ? `${item.name} (${item.variant})` : item.name;
+      return `
+        <div class="item-row">
+          <div class="item-name">${escapeHtml(itemName)}</div>
+          <div class="item-meta">${item.qty} x ${formatCurrency(item.price)}</div>
+          <div class="item-subtotal">${formatCurrency(item.subtotal)}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  const cashInfo =
+    transaction.paymentMethod === "cash"
+      ? `
+        <div class="row"><span>Dibayar</span><span>${formatCurrency(transaction.cashPaid)}</span></div>
+        <div class="row"><span>Kembalian</span><span>${formatCurrency(transaction.change)}</span></div>
+      `
+      : "";
+
+  return `<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Struk - DCelup</title>
+    <style>
+      @page {
+        size: 58mm auto;
+        margin: 3mm;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        width: 52mm;
+        font-family: "Courier New", Courier, monospace;
+        font-size: 11px;
+        line-height: 1.35;
+        color: #000;
+      }
+      .center { text-align: center; }
+      .store { font-weight: 700; font-size: 12px; }
+      .divider {
+        margin: 6px 0;
+        border-top: 1px dashed #000;
+      }
+      .item-row { margin-bottom: 6px; }
+      .item-name { font-weight: 700; }
+      .item-meta { font-size: 10px; }
+      .item-subtotal {
+        text-align: right;
+        font-weight: 700;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .total {
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .footer { margin-top: 8px; font-size: 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="center store">DCelup Crispy Chicken</div>
+    <div class="center">${escapeHtml(transaction.date)} ${escapeHtml(transaction.time)}</div>
+    <div class="divider"></div>
+    ${itemsHtml}
+    <div class="divider"></div>
+    <div class="row total"><span>TOTAL</span><span>${formatCurrency(transaction.total)}</span></div>
+    <div class="row"><span>Metode</span><span>${escapeHtml(transaction.paymentMethod.toUpperCase())}</span></div>
+    ${cashInfo}
+    <div class="divider"></div>
+    <div class="center footer">Terima kasih</div>
+    <script>
+      window.onafterprint = () => window.close();
+    </script>
+  </body>
+</html>`;
+}
+
+function printLastReceipt() {
+  if (!lastTransaction.value) {
+    showToast("Data transaksi tidak ditemukan", "error", "❌");
+    return;
+  }
+
+  const printWindow = window.open("", "_blank", "width=420,height=700");
+  if (!printWindow) {
+    showToast("Popup diblokir browser, izinkan popup untuk print", "error", "⚠️");
+    return;
+  }
+
+  printWindow.document.open();
+  printWindow.document.write(buildReceiptHtml(lastTransaction.value));
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.onload = () => {
+    printWindow.print();
+  };
 }
 
 function showToast(message, type = "success", icon = "✅") {
@@ -288,5 +443,27 @@ onMounted(() => {
   .kasir-layout {
     grid-template-columns: 1fr;
   }
+}
+
+.receipt-modal {
+  max-width: 420px;
+}
+
+.receipt-summary {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 1.25rem;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+.receipt-summary strong {
+  color: var(--text-primary);
+}
+
+.receipt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
 }
 </style>
