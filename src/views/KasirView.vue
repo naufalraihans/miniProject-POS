@@ -86,12 +86,68 @@
           </p>
         </div>
 
+        <div class="printer-status glass-card">
+          <div class="printer-text">
+            <strong>Printer:</strong>
+            {{ selectedPrinterName || "Belum diset" }}
+          </div>
+          <button class="btn btn-sm btn-secondary" @click="openPrinterSetup">
+            ⚙️ Setup Printer
+          </button>
+        </div>
+
         <div class="receipt-actions">
           <button class="btn btn-secondary" @click="showReceiptPrompt = false">
             Tutup
           </button>
-          <button class="btn btn-primary" @click="printLastReceipt">
-            🖨️ Print Struk
+          <button class="btn btn-secondary" @click="printLastReceiptBrowser">
+            Print Browser
+          </button>
+          <button class="btn btn-primary" :disabled="printingReceipt" @click="printLastReceipt">
+            {{ printingReceipt ? "Mencetak..." : "🖨️ Print Struk" }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Printer Setup Modal -->
+    <div
+      v-if="showPrinterSetup"
+      class="modal-overlay"
+      @click.self="showPrinterSetup = false"
+    >
+      <div class="modal-content slide-up receipt-modal">
+        <div class="modal-header">
+          <h3 class="modal-title">🖨️ Setup Printer QZ Tray</h3>
+          <button class="modal-close" @click="showPrinterSetup = false">✕</button>
+        </div>
+
+        <p class="setup-hint">
+          Pastikan QZ Tray sedang berjalan. Pilih printer thermal sekali, lalu klik
+          print tanpa pilih device lagi.
+        </p>
+
+        <div v-if="loadingPrinters" class="empty-state">
+          <div class="empty-state-icon">⏳</div>
+          <p class="empty-state-text">Mencari printer...</p>
+        </div>
+
+        <div v-else class="form-group">
+          <label class="form-label">Daftar Printer</label>
+          <select class="form-input" v-model="printerDraftName">
+            <option value="" disabled>Pilih printer</option>
+            <option v-for="printer in printerList" :key="printer" :value="printer">
+              {{ printer }}
+            </option>
+          </select>
+        </div>
+
+        <div class="receipt-actions">
+          <button class="btn btn-secondary" @click="refreshPrinters">
+            Muat Ulang
+          </button>
+          <button class="btn btn-primary" :disabled="!printerDraftName" @click="savePrinterSelection">
+            Simpan Printer
           </button>
         </div>
       </div>
@@ -111,8 +167,17 @@ const extras = ref([]);
 const cart = ref([]);
 const showCheckout = ref(false);
 const showReceiptPrompt = ref(false);
+const showPrinterSetup = ref(false);
 const lastTransaction = ref(null);
+const selectedPrinterName = ref("");
+const printerDraftName = ref("");
+const printerList = ref([]);
+const loadingPrinters = ref(false);
+const printingReceipt = ref(false);
 const toast = ref({ show: false, message: "", type: "success", icon: "✅" });
+const PRINTER_STORAGE_KEY = "kasir-qz-printer-name";
+const QZ_SCRIPT_ID = "qz-tray-script";
+const QZ_SCRIPT_SRC = "https://cdn.jsdelivr.net/npm/qz-tray@2.2.5/qz-tray.js";
 
 const cartTotal = computed(() =>
   cart.value.reduce((sum, item) => sum + item.price * item.qty, 0),
@@ -347,7 +412,175 @@ function buildReceiptHtml(transaction) {
 </html>`;
 }
 
-function printLastReceipt() {
+function getQz() {
+  return window.qz || null;
+}
+
+function loadQzScript() {
+  if (getQz()) return Promise.resolve(getQz());
+
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById(QZ_SCRIPT_ID);
+    if (existing) {
+      if (getQz()) {
+        resolve(getQz());
+        return;
+      }
+      if (existing.dataset.status === "error") {
+        existing.remove();
+      } else {
+        existing.addEventListener("load", () => resolve(getQz()), { once: true });
+        existing.addEventListener(
+          "error",
+          () => reject(new Error("Gagal memuat library QZ Tray")),
+          { once: true },
+        );
+        return;
+      }
+    }
+
+    const script = document.createElement("script");
+    script.id = QZ_SCRIPT_ID;
+    script.src = QZ_SCRIPT_SRC;
+    script.async = true;
+    script.dataset.status = "loading";
+    script.onload = () => {
+      script.dataset.status = "loaded";
+      resolve(getQz());
+    };
+    script.onerror = () => {
+      script.dataset.status = "error";
+      reject(new Error("Gagal memuat library QZ Tray"));
+    };
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureQzConnection() {
+  const qz = await loadQzScript();
+  if (!qz) {
+    throw new Error("Library QZ Tray tidak tersedia");
+  }
+
+  if (!qz.websocket.isActive()) {
+    await qz.websocket.connect({ retries: 2, delay: 1 });
+  }
+
+  return qz;
+}
+
+function formatPriceText(value) {
+  return `Rp${new Intl.NumberFormat("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value)}`;
+}
+
+function twoCol(left, right, width = 32) {
+  const gap = width - left.length - right.length;
+  if (gap >= 1) return left + " ".repeat(gap) + right;
+  if (right.length >= width) return right.slice(0, width);
+  return `${left.slice(0, Math.max(0, width - right.length - 1))} ${right}`;
+}
+
+function wrapText(text, width = 32) {
+  const chunks = [];
+  for (let i = 0; i < text.length; i += width) {
+    chunks.push(text.slice(i, i + width));
+  }
+  return chunks.length > 0 ? chunks : [""];
+}
+
+function buildEscPosReceiptLines(transaction) {
+  const ESC = "\x1B";
+  const GS = "\x1D";
+  const NL = "\x0A";
+  const width = 32;
+  const line = "-".repeat(width);
+  const rows = [];
+
+  rows.push(ESC + "@");
+  rows.push(ESC + "a" + "\x01");
+  rows.push("DCelup Crispy Chicken" + NL);
+  rows.push(`${transaction.date} ${transaction.time}` + NL);
+  rows.push(line + NL);
+  rows.push(ESC + "a" + "\x00");
+
+  transaction.items.forEach((item) => {
+    const itemName = item.variant ? `${item.name} (${item.variant})` : item.name;
+    wrapText(itemName, width).forEach((chunk) => rows.push(chunk + NL));
+    const itemMeta = `${item.qty} x ${formatPriceText(item.price)}`;
+    const itemSubtotal = formatPriceText(item.subtotal);
+    rows.push(twoCol(itemMeta, itemSubtotal, width) + NL);
+  });
+
+  rows.push(line + NL);
+  rows.push(twoCol("TOTAL", formatPriceText(transaction.total), width) + NL);
+  rows.push(
+    twoCol("Metode", String(transaction.paymentMethod || "").toUpperCase(), width) + NL,
+  );
+  if (transaction.paymentMethod === "cash") {
+    rows.push(twoCol("Dibayar", formatPriceText(transaction.cashPaid || 0), width) + NL);
+    rows.push(twoCol("Kembalian", formatPriceText(transaction.change || 0), width) + NL);
+  }
+  rows.push(line + NL);
+  rows.push(ESC + "a" + "\x01");
+  rows.push("Terima kasih" + NL + NL);
+  rows.push(GS + "V" + "\x00");
+
+  return rows;
+}
+
+async function openPrinterSetup() {
+  showPrinterSetup.value = true;
+  await refreshPrinters();
+}
+
+async function refreshPrinters() {
+  loadingPrinters.value = true;
+  try {
+    const qz = await ensureQzConnection();
+    const printers = await qz.printers.find();
+    printerList.value = (Array.isArray(printers) ? printers : [printers]).filter(Boolean);
+
+    if (!printerList.value.length) {
+      showToast("Printer tidak ditemukan", "error", "⚠️");
+      return;
+    }
+
+    if (!printerDraftName.value) {
+      try {
+        const defaultPrinter = await qz.printers.getDefault();
+        if (defaultPrinter && printerList.value.includes(defaultPrinter)) {
+          printerDraftName.value = defaultPrinter;
+        }
+      } catch {
+        // Ignore default-printer fetch failure; list is already loaded.
+      }
+    }
+  } catch (error) {
+    console.error("QZ printer loading error:", error);
+    showToast("QZ Tray belum terhubung. Jalankan QZ Tray dulu.", "error", "❌");
+  } finally {
+    loadingPrinters.value = false;
+  }
+}
+
+function savePrinterSelection() {
+  selectedPrinterName.value = printerDraftName.value;
+  localStorage.setItem(PRINTER_STORAGE_KEY, printerDraftName.value);
+  showPrinterSetup.value = false;
+  showToast("Printer berhasil disimpan", "success", "✅");
+}
+
+async function printReceiptWithQz(transaction, printerName) {
+  const qz = await ensureQzConnection();
+  const config = qz.configs.create(printerName, { encoding: "CP437" });
+  const data = buildEscPosReceiptLines(transaction);
+  await qz.print(config, data);
+}
+
+function printLastReceiptBrowser() {
   if (!lastTransaction.value) {
     showToast("Data transaksi tidak ditemukan", "error", "❌");
     return;
@@ -369,6 +602,29 @@ function printLastReceipt() {
   };
 }
 
+async function printLastReceipt() {
+  if (!lastTransaction.value) {
+    showToast("Data transaksi tidak ditemukan", "error", "❌");
+    return;
+  }
+  if (!selectedPrinterName.value) {
+    showToast("Set printer dulu sebelum print", "error", "⚠️");
+    await openPrinterSetup();
+    return;
+  }
+
+  printingReceipt.value = true;
+  try {
+    await printReceiptWithQz(lastTransaction.value, selectedPrinterName.value);
+    showToast("Struk berhasil dikirim ke printer", "success", "✅");
+  } catch (error) {
+    console.error("QZ print error:", error);
+    showToast("Gagal print via QZ Tray. Coba Print Browser.", "error", "❌");
+  } finally {
+    printingReceipt.value = false;
+  }
+}
+
 function showToast(message, type = "success", icon = "✅") {
   toast.value = { show: true, message, type, icon };
   setTimeout(() => {
@@ -377,6 +633,11 @@ function showToast(message, type = "success", icon = "✅") {
 }
 
 onMounted(() => {
+  const savedPrinter = localStorage.getItem(PRINTER_STORAGE_KEY);
+  if (savedPrinter) {
+    selectedPrinterName.value = savedPrinter;
+    printerDraftName.value = savedPrinter;
+  }
   loadMenus();
 });
 </script>
@@ -459,9 +720,31 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
+.printer-status {
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.printer-text {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.setup-hint {
+  margin-bottom: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}
+
 .receipt-actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.7rem;
 }
 </style>

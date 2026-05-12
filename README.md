@@ -1,5 +1,22 @@
-# Vue 3 + Vite
+# Project Kasir - DCelup
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+## Jalankan project
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+```bash
+npm install
+npm run dev
+```
+
+## Print struk click-and-go (QZ Tray)
+
+Fitur print struk di halaman **Kasir** sudah mendukung QZ Tray agar kasir cukup klik sekali tanpa dialog pilih printer tiap transaksi.
+
+### Setup awal (sekali saja di laptop kasir)
+
+1. Install dan jalankan **QZ Tray**.
+2. Selesaikan transaksi seperti biasa sampai muncul modal **Transaksi Berhasil**.
+3. Klik **Setup Printer**.
+4. Pilih printer thermal yang dipakai kasir, lalu klik **Simpan Printer**.
+5. Setelah itu tombol **Print Struk** akan langsung kirim struk ke printer terpilih.
+
+Jika QZ Tray sedang tidak aktif atau gagal konek, tetap ada fallback **Print Browser**.
