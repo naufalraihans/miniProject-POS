@@ -343,9 +343,6 @@ function buildReceiptHtml(transaction) {
     ${cashInfo}
     <div class="divider"></div>
     <div class="center footer">Terima kasih</div>
-    <script>
-      window.onafterprint = () => window.close();
-    </script>
   </body>
 </html>`;
 }
@@ -367,6 +364,7 @@ function printLastReceipt() {
   printWindow.document.close();
   printWindow.focus();
   printWindow.onload = () => {
+    printWindow.onafterprint = () => printWindow.close();
     printWindow.print();
   };
 }
