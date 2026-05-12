@@ -18,7 +18,7 @@
         <span>Rekap</span>
       </router-link>
       <button
-        v-if="deferredPrompt"
+        v-if="!nativeShell && deferredPrompt"
         class="btn btn-sm btn-primary install-btn"
         @click="installPWA"
       >
@@ -29,17 +29,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onBeforeUnmount, onMounted } from "vue";
+import { isNativePlatform } from "../services/platform";
 
 const deferredPrompt = ref(null);
+const nativeShell = isNativePlatform();
+let installPromptListener = null;
 
 onMounted(() => {
-  window.addEventListener("beforeinstallprompt", (e) => {
-    // Prevent Chrome 67 and earlier from automatically showing the prompt
-    e.preventDefault();
-    // Stash the event so it can be triggered later.
-    deferredPrompt.value = e;
-  });
+  if (nativeShell) return;
+
+  installPromptListener = (event) => {
+    event.preventDefault();
+    deferredPrompt.value = event;
+  };
+  window.addEventListener("beforeinstallprompt", installPromptListener);
 });
 
 async function installPWA() {
@@ -57,6 +61,12 @@ async function installPWA() {
   // We've used the prompt, and can't use it again, throw it away
   deferredPrompt.value = null;
 }
+
+onBeforeUnmount(() => {
+  if (installPromptListener) {
+    window.removeEventListener("beforeinstallprompt", installPromptListener);
+  }
+});
 </script>
 
 <style scoped>

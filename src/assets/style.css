@@ -80,6 +80,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+body.native-shell {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
 /* Background gradient — applied directly to body (no fixed pseudo-element) */
 /* Subtle gradient baked into the background to avoid scroll repaint */
 
@@ -468,4 +472,40 @@ select.form-input {
 
 .toast-error {
   border-color: rgba(255, 107, 107, 0.3);
+}
+
+body.android-shell {
+  background: var(--bg-primary);
+}
+
+body.android-shell .glass-card:hover,
+body.android-shell .btn-primary:hover,
+body.android-shell .btn-secondary:hover,
+body.android-shell .btn-danger:hover,
+body.android-shell .btn-success:hover,
+body.android-shell .data-table tbody tr:hover {
+  transform: none;
+  box-shadow: none;
+  background: inherit;
+}
+
+body.android-shell .glass-card {
+  background: rgba(26, 26, 46, 0.92);
+  box-shadow: var(--shadow-sm);
+  will-change: auto;
+}
+
+body.android-shell .modal-overlay {
+  backdrop-filter: none;
+}
+
+body.android-shell .modal-content,
+body.android-shell .toast {
+  box-shadow: var(--shadow-md);
+}
+
+body.android-shell .fade-in,
+body.android-shell .slide-up,
+body.android-shell .toast {
+  animation: none;
 }

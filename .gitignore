@@ -11,6 +11,20 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+coverage
+
+# Local Android / Java toolchains
+cmdline-tools/
+jdk-*/
+*.zip
+
+# Build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
 
 # Editor directories and files
 .vscode/*

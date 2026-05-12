@@ -6,9 +6,7 @@
     </div>
 
     <div class="kasir-layout">
-      <!-- Left: Menu Grid -->
       <div class="menu-section">
-        <!-- Main Menu -->
         <h2 class="section-title">Menu Utama</h2>
         <div class="menu-grid">
           <MenuCard
@@ -19,7 +17,6 @@
           />
         </div>
 
-        <!-- Extra Menu -->
         <h2 class="section-title" style="margin-top: 1.5rem">Menu Tambahan</h2>
         <div class="menu-grid extras">
           <div
@@ -28,14 +25,13 @@
             class="extra-card glass-card"
             @click="addExtraToCart(extra)"
           >
-            <span class="extra-icon">➕</span>
+            <span class="extra-icon">+</span>
             <span class="extra-name">{{ extra.name }}</span>
             <span class="extra-price">{{ formatCurrency(extra.price) }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Right: Cart Panel -->
       <CartPanel
         :cart="cart"
         @update-qty="updateQty"
@@ -45,7 +41,6 @@
       />
     </div>
 
-    <!-- Checkout Modal -->
     <CheckoutModal
       v-if="showCheckout"
       :cart="cart"
@@ -54,13 +49,11 @@
       @confirm="handleCheckout"
     />
 
-    <!-- Toast -->
     <div v-if="toast.show" :class="['toast', 'toast-' + toast.type]">
       <span>{{ toast.icon }}</span>
       <span>{{ toast.message }}</span>
     </div>
 
-    <!-- Receipt Prompt -->
     <div
       v-if="showReceiptPrompt && lastTransaction"
       class="modal-overlay"
@@ -68,8 +61,8 @@
     >
       <div class="modal-content slide-up receipt-modal">
         <div class="modal-header">
-          <h3 class="modal-title">✅ Transaksi Berhasil</h3>
-          <button class="modal-close" @click="showReceiptPrompt = false">✕</button>
+          <h3 class="modal-title">Transaksi Berhasil</h3>
+          <button class="modal-close" @click="showReceiptPrompt = false">x</button>
         </div>
 
         <div class="receipt-summary">
@@ -88,11 +81,11 @@
 
         <div class="printer-status glass-card">
           <div class="printer-text">
-            <strong>Printer:</strong>
-            {{ selectedPrinterName || "Belum diset" }}
+            <strong>{{ printerStatusLabel }}:</strong>
+            {{ selectedPrinterLabel || "Belum diset" }}
           </div>
           <button class="btn btn-sm btn-secondary" @click="openPrinterSetup">
-            ⚙️ Setup Printer
+            Setup Printer
           </button>
         </div>
 
@@ -100,17 +93,20 @@
           <button class="btn btn-secondary" @click="showReceiptPrompt = false">
             Tutup
           </button>
-          <button class="btn btn-secondary" @click="printLastReceiptBrowser">
+          <button
+            v-if="showBrowserPrintButton"
+            class="btn btn-secondary"
+            @click="printLastReceiptBrowser"
+          >
             Print Browser
           </button>
           <button class="btn btn-primary" :disabled="printingReceipt" @click="printLastReceipt">
-            {{ printingReceipt ? "Mencetak..." : "🖨️ Print Struk" }}
+            {{ printingReceipt ? "Mencetak..." : "Print Struk" }}
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Printer Setup Modal -->
     <div
       v-if="showPrinterSetup"
       class="modal-overlay"
@@ -118,42 +114,57 @@
     >
       <div class="modal-content slide-up receipt-modal">
         <div class="modal-header">
-          <h3 class="modal-title">🖨️ Setup Printer QZ Tray</h3>
-          <button class="modal-close" @click="showPrinterSetup = false">✕</button>
+          <h3 class="modal-title">{{ printerSetupTitle }}</h3>
+          <button class="modal-close" @click="showPrinterSetup = false">x</button>
         </div>
 
         <p class="setup-hint">
-          Pastikan QZ Tray sedang berjalan. Pilih printer thermal sekali, lalu klik
-          print tanpa pilih device lagi.
+          {{ printerSetupHint }}
         </p>
 
-        <div v-if="qzErrorMessage" class="qz-error-box">
-          <p>{{ qzErrorMessage }}</p>
-          <button class="btn btn-sm btn-secondary" @click="launchQzTray">
+        <div v-if="printerErrorMessage" class="qz-error-box">
+          <p>{{ printerErrorMessage }}</p>
+          <button
+            v-if="!androidPrintMode"
+            class="btn btn-sm btn-secondary"
+            @click="openDesktopPrinterBridge"
+          >
             Buka QZ Tray
           </button>
         </div>
 
         <div v-if="loadingPrinters" class="empty-state">
-          <div class="empty-state-icon">⏳</div>
-          <p class="empty-state-text">Mencari printer...</p>
+          <div class="empty-state-icon">...</div>
+          <p class="empty-state-text">{{ loadingPrinterText }}</p>
         </div>
 
         <div v-else class="form-group">
           <label class="form-label">Daftar Printer</label>
-          <select class="form-input" v-model="printerDraftName">
+          <select class="form-input" v-model="printerDraftId">
             <option value="" disabled>Pilih printer</option>
-            <option v-for="printer in printerList" :key="printer" :value="printer">
-              {{ printer }}
+            <option v-for="printer in printerList" :key="printer.id" :value="printer.id">
+              {{ printerOptionLabel(printer) }}
             </option>
           </select>
         </div>
 
+        <p v-if="androidPrintMode" class="setup-note">
+          Pair printer dulu lewat Settings Bluetooth Android. App hanya menampilkan device yang
+          sudah paired.
+        </p>
+
         <div class="receipt-actions">
           <button class="btn btn-secondary" @click="refreshPrinters">
-            Muat Ulang
+            {{ refreshPrinterLabel }}
           </button>
-          <button class="btn btn-primary" :disabled="!printerDraftName" @click="savePrinterSelection">
+          <button
+            class="btn btn-secondary"
+            :disabled="!draftPrinter || printingReceipt"
+            @click="testSelectedPrinter"
+          >
+            Test Print
+          </button>
+          <button class="btn btn-primary" :disabled="!draftPrinter" @click="savePrinterChoice">
             Simpan Printer
           </button>
         </div>
@@ -163,11 +174,26 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
-import MenuCard from "../components/MenuCard.vue";
+import { computed, onMounted, ref } from "vue";
 import CartPanel from "../components/CartPanel.vue";
 import CheckoutModal from "../components/CheckoutModal.vue";
+import MenuCard from "../components/MenuCard.vue";
 import { db, collection, getDocs, addDoc, Timestamp } from "../firebase";
+import { formatCurrency } from "../services/receipt";
+import {
+  canUseBrowserPrint,
+  detectPrintPlatform,
+  getPrinterDisplayName,
+  getSavedPrinter,
+  launchQzTray,
+  listPrinters,
+  printBrowserReceipt,
+  printReceipt,
+  printTest,
+  resolvePrintErrorMessage,
+  saveSelectedPrinter,
+  suggestPrinterSelection,
+} from "../services/printService";
 
 const menus = ref([]);
 const extras = ref([]);
@@ -176,58 +202,72 @@ const showCheckout = ref(false);
 const showReceiptPrompt = ref(false);
 const showPrinterSetup = ref(false);
 const lastTransaction = ref(null);
-const selectedPrinterName = ref("");
-const printerDraftName = ref("");
+const selectedPrinter = ref(getSavedPrinter());
+const printerDraftId = ref(selectedPrinter.value?.id || "");
 const printerList = ref([]);
 const loadingPrinters = ref(false);
 const printingReceipt = ref(false);
-const qzErrorMessage = ref("");
-const toast = ref({ show: false, message: "", type: "success", icon: "✅" });
-const PRINTER_STORAGE_KEY = "kasir-qz-printer-name";
-const QZ_SCRIPT_ID = "qz-tray-script";
-const QZ_SCRIPT_SRC = "https://cdn.jsdelivr.net/npm/qz-tray@2.2.5/qz-tray.js";
-const PRINTER_NAME_HINTS = ["haoyin dt-58d", "haoyin", "dt-58d", "pos-58", "58d"];
+const printerErrorMessage = ref("");
+const toast = ref({ show: false, message: "", type: "success", icon: "OK" });
+
+const printPlatform = detectPrintPlatform();
+const androidPrintMode = printPlatform === "android";
 
 const cartTotal = computed(() =>
   cart.value.reduce((sum, item) => sum + item.price * item.qty, 0),
 );
 
-function formatCurrency(val) {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(val);
-}
+const showBrowserPrintButton = computed(() => canUseBrowserPrint());
+const selectedPrinterLabel = computed(() => getPrinterDisplayName(selectedPrinter.value));
+const printerStatusLabel = computed(() =>
+  androidPrintMode ? "Printer Bluetooth" : "Printer",
+);
+const printerSetupTitle = computed(() =>
+  androidPrintMode ? "Setup Printer Bluetooth" : "Setup Printer QZ Tray",
+);
+const printerSetupHint = computed(() =>
+  androidPrintMode
+    ? "Izinkan akses bluetooth, lalu pilih printer thermal yang sudah paired di HP ini."
+    : "Pastikan QZ Tray sedang berjalan. Pilih printer thermal sekali, lalu print tanpa pilih device lagi.",
+);
+const loadingPrinterText = computed(() =>
+  androidPrintMode ? "Mencari printer paired..." : "Mencari printer...",
+);
+const refreshPrinterLabel = computed(() =>
+  androidPrintMode ? "Muat Perangkat" : "Muat Ulang",
+);
+const draftPrinter = computed(
+  () => printerList.value.find((printer) => printer.id === printerDraftId.value) || null,
+);
 
 async function loadMenus() {
   try {
     const snap = await getDocs(collection(db, "menus"));
     if (snap.empty) {
-      // Seed from produk.json
       await seedMenus();
-    } else {
-      const items = [];
-      const extraItems = [];
-      snap.forEach((d) => {
-        const data = { ...d.data(), docId: d.id };
-        if (data.isExtra) {
-          extraItems.push(data);
-        } else {
-          items.push(data);
-        }
-      });
-      menus.value = items.sort((a, b) => a.id - b.id);
-      extras.value = extraItems;
+      return;
     }
-  } catch (e) {
-    console.error("Error loading menus:", e);
-    showToast("Gagal memuat menu", "error", "❌");
+
+    const items = [];
+    const extraItems = [];
+    snap.forEach((docSnap) => {
+      const data = { ...docSnap.data(), docId: docSnap.id };
+      if (data.isExtra) {
+        extraItems.push(data);
+      } else {
+        items.push(data);
+      }
+    });
+    menus.value = items.sort((a, b) => a.id - b.id);
+    extras.value = extraItems;
+  } catch (error) {
+    console.error("Error loading menus:", error);
+    showToast("Gagal memuat menu", "error", "ERR");
   }
 }
 
 async function seedMenus() {
-  const produkData = await fetch("/produk.json").then((r) => r.json());
+  const produkData = await fetch("/produk.json").then((response) => response.json());
   for (const item of produkData.menu) {
     await addDoc(collection(db, "menus"), {
       id: item.id,
@@ -237,6 +277,7 @@ async function seedMenus() {
       isExtra: false,
     });
   }
+
   for (const extra of produkData.extra_menu) {
     await addDoc(collection(db, "menus"), {
       name: extra.name,
@@ -244,12 +285,13 @@ async function seedMenus() {
       isExtra: true,
     });
   }
+
   await loadMenus();
 }
 
 function handleAddToCart(item) {
   const key = item.name + (item.variantKey || "");
-  const existing = cart.value.find((c) => c.cartKey === key);
+  const existing = cart.value.find((cartItem) => cartItem.cartKey === key);
   if (existing) {
     existing.qty++;
   } else {
@@ -261,11 +303,11 @@ function handleAddToCart(item) {
       qty: 1,
     });
   }
-  showToast(`${item.name} ditambahkan`, "success", "🛒");
+  showToast(`${item.name} ditambahkan`, "success", "+");
 }
 
 function addExtraToCart(extra) {
-  const existing = cart.value.find((c) => c.cartKey === extra.name);
+  const existing = cart.value.find((cartItem) => cartItem.cartKey === extra.name);
   if (existing) {
     existing.qty++;
   } else {
@@ -277,7 +319,7 @@ function addExtraToCart(extra) {
       qty: 1,
     });
   }
-  showToast(`${extra.name} ditambahkan`, "success", "🛒");
+  showToast(`${extra.name} ditambahkan`, "success", "+");
 }
 
 function updateQty(index, delta) {
@@ -300,12 +342,12 @@ async function handleCheckout(paymentData) {
   try {
     const now = new Date();
     const transaction = {
-      items: cart.value.map((c) => ({
-        name: c.name,
-        variant: c.variant,
-        qty: c.qty,
-        price: c.price,
-        subtotal: c.price * c.qty,
+      items: cart.value.map((item) => ({
+        name: item.name,
+        variant: item.variant,
+        qty: item.qty,
+        price: item.price,
+        subtotal: item.price * item.qty,
       })),
       total: cartTotal.value,
       paymentMethod: paymentData.method,
@@ -324,357 +366,129 @@ async function handleCheckout(paymentData) {
     showCheckout.value = false;
     cart.value = [];
     showReceiptPrompt.value = true;
-    showToast("Transaksi berhasil! 🎉", "success", "✅");
-  } catch (e) {
-    console.error("Checkout error:", e);
-    showToast("Gagal menyimpan transaksi", "error", "❌");
+    showToast("Transaksi berhasil!", "success", "OK");
+  } catch (error) {
+    console.error("Checkout error:", error);
+    showToast("Gagal menyimpan transaksi", "error", "ERR");
   }
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function buildReceiptHtml(transaction) {
-  const itemsHtml = transaction.items
-    .map((item) => {
-      const itemName = item.variant ? `${item.name} (${item.variant})` : item.name;
-      return `
-        <div class="item-row">
-          <div class="item-name">${escapeHtml(itemName)}</div>
-          <div class="item-meta">${item.qty} x ${formatCurrency(item.price)}</div>
-          <div class="item-subtotal">${formatCurrency(item.subtotal)}</div>
-        </div>
-      `;
-    })
-    .join("");
-
-  const cashInfo =
-    transaction.paymentMethod === "cash"
-      ? `
-        <div class="row"><span>Dibayar</span><span>${formatCurrency(transaction.cashPaid)}</span></div>
-        <div class="row"><span>Kembalian</span><span>${formatCurrency(transaction.change)}</span></div>
-      `
-      : "";
-
-  return `<!doctype html>
-<html lang="id">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Struk - DCelup</title>
-    <style>
-      @page {
-        size: 58mm auto;
-        margin: 3mm;
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        width: 52mm;
-        font-family: "Courier New", Courier, monospace;
-        font-size: 11px;
-        line-height: 1.35;
-        color: #000;
-      }
-      .center { text-align: center; }
-      .store { font-weight: 700; font-size: 12px; }
-      .divider {
-        margin: 6px 0;
-        border-top: 1px dashed #000;
-      }
-      .item-row { margin-bottom: 6px; }
-      .item-name { font-weight: 700; }
-      .item-meta { font-size: 10px; }
-      .item-subtotal {
-        text-align: right;
-        font-weight: 700;
-      }
-      .row {
-        display: flex;
-        justify-content: space-between;
-        gap: 8px;
-      }
-      .total {
-        font-size: 12px;
-        font-weight: 700;
-      }
-      .footer { margin-top: 8px; font-size: 10px; }
-    </style>
-  </head>
-  <body>
-    <div class="center store">DCelup Crispy Chicken</div>
-    <div class="center">${escapeHtml(transaction.date)} ${escapeHtml(transaction.time)}</div>
-    <div class="divider"></div>
-    ${itemsHtml}
-    <div class="divider"></div>
-    <div class="row total"><span>TOTAL</span><span>${formatCurrency(transaction.total)}</span></div>
-    <div class="row"><span>Metode</span><span>${escapeHtml(transaction.paymentMethod.toUpperCase())}</span></div>
-    ${cashInfo}
-    <div class="divider"></div>
-    <div class="center footer">Terima kasih</div>
-  </body>
-</html>`;
-}
-
-function resolveQzErrorMessage(error) {
-  const raw = String(error?.message || error || "");
-  const lower = raw.toLowerCase();
-
-  if (lower.includes("gagal memuat library qz tray")) {
-    return "Library QZ gagal dimuat. Cek koneksi internet/adblock lalu klik Muat Ulang.";
-  }
-  if (lower.includes("unable to establish connection with qz")) {
-    return "QZ Tray belum bisa dihubungi. Pastikan app QZ Tray aktif, lalu klik Muat Ulang.";
-  }
-  if (lower.includes("websocket")) {
-    return "Koneksi websocket QZ gagal. Coba restart QZ Tray lalu Muat Ulang.";
-  }
-  return `QZ error: ${raw || "Unknown error"}`;
-}
-
-function getQz() {
-  return window.qz || null;
-}
-
-function loadQzScript() {
-  if (getQz()) return Promise.resolve(getQz());
-
-  return new Promise((resolve, reject) => {
-    const existing = document.getElementById(QZ_SCRIPT_ID);
-    if (existing) {
-      if (getQz()) {
-        resolve(getQz());
-        return;
-      }
-      if (existing.dataset.status === "error") {
-        existing.remove();
-      } else {
-        existing.addEventListener("load", () => resolve(getQz()), { once: true });
-        existing.addEventListener(
-          "error",
-          () => reject(new Error("Gagal memuat library QZ Tray")),
-          { once: true },
-        );
-        return;
-      }
-    }
-
-    const script = document.createElement("script");
-    script.id = QZ_SCRIPT_ID;
-    script.src = QZ_SCRIPT_SRC;
-    script.async = true;
-    script.dataset.status = "loading";
-    script.onload = () => {
-      script.dataset.status = "loaded";
-      resolve(getQz());
-    };
-    script.onerror = () => {
-      script.dataset.status = "error";
-      reject(new Error("Gagal memuat library QZ Tray"));
-    };
-    document.head.appendChild(script);
-  });
-}
-
-async function ensureQzConnection() {
-  const qz = await loadQzScript();
-  if (!qz) {
-    throw new Error("Library QZ Tray tidak tersedia");
-  }
-
-  if (!qz.websocket.isActive()) {
-    await qz.websocket.connect({ retries: 2, delay: 1 });
-  }
-
-  return qz;
-}
-
-function formatPriceText(value) {
-  return `Rp${new Intl.NumberFormat("id-ID", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)}`;
-}
-
-function twoCol(left, right, width = 32) {
-  const gap = width - left.length - right.length;
-  if (gap >= 1) return left + " ".repeat(gap) + right;
-  if (right.length >= width) return right.slice(0, width);
-  return `${left.slice(0, Math.max(0, width - right.length - 1))} ${right}`;
-}
-
-function wrapText(text, width = 32) {
-  const chunks = [];
-  for (let i = 0; i < text.length; i += width) {
-    chunks.push(text.slice(i, i + width));
-  }
-  return chunks.length > 0 ? chunks : [""];
-}
-
-function buildEscPosReceiptLines(transaction) {
-  const ESC = "\x1B";
-  const GS = "\x1D";
-  const NL = "\x0A";
-  const width = 32;
-  const line = "-".repeat(width);
-  const rows = [];
-
-  rows.push(ESC + "@");
-  rows.push(ESC + "a" + "\x01");
-  rows.push("DCelup Crispy Chicken" + NL);
-  rows.push(`${transaction.date} ${transaction.time}` + NL);
-  rows.push(line + NL);
-  rows.push(ESC + "a" + "\x00");
-
-  transaction.items.forEach((item) => {
-    const itemName = item.variant ? `${item.name} (${item.variant})` : item.name;
-    wrapText(itemName, width).forEach((chunk) => rows.push(chunk + NL));
-    const itemMeta = `${item.qty} x ${formatPriceText(item.price)}`;
-    const itemSubtotal = formatPriceText(item.subtotal);
-    rows.push(twoCol(itemMeta, itemSubtotal, width) + NL);
-  });
-
-  rows.push(line + NL);
-  rows.push(twoCol("TOTAL", formatPriceText(transaction.total), width) + NL);
-  rows.push(
-    twoCol("Metode", String(transaction.paymentMethod || "").toUpperCase(), width) + NL,
-  );
-  if (transaction.paymentMethod === "cash") {
-    rows.push(twoCol("Dibayar", formatPriceText(transaction.cashPaid || 0), width) + NL);
-    rows.push(twoCol("Kembalian", formatPriceText(transaction.change || 0), width) + NL);
-  }
-  rows.push(line + NL);
-  rows.push(ESC + "a" + "\x01");
-  rows.push("Terima kasih" + NL + NL);
-  rows.push(GS + "V" + "\x00");
-
-  return rows;
-}
-
-function launchQzTray() {
-  const launcher = document.createElement("iframe");
-  launcher.style.display = "none";
-  launcher.src = "qz:launch";
-  document.body.appendChild(launcher);
-  setTimeout(() => launcher.remove(), 1200);
 }
 
 async function openPrinterSetup() {
   showPrinterSetup.value = true;
-  qzErrorMessage.value = "";
+  printerErrorMessage.value = "";
   await refreshPrinters();
 }
 
 async function refreshPrinters() {
   loadingPrinters.value = true;
-  qzErrorMessage.value = "";
+  printerErrorMessage.value = "";
   try {
-    const qz = await ensureQzConnection();
-    const printers = await qz.printers.find();
-    printerList.value = (Array.isArray(printers) ? printers : [printers]).filter(Boolean);
+    printerList.value = await listPrinters();
 
     if (!printerList.value.length) {
-      showToast("Printer tidak ditemukan", "error", "⚠️");
+      showToast(
+        androidPrintMode
+          ? "Belum ada printer paired di HP ini"
+          : "Printer tidak ditemukan",
+        "error",
+        "WARN",
+      );
       return;
     }
 
-    const hintedPrinter = printerList.value.find((printer) => {
-      const normalized = String(printer).toLowerCase();
-      return PRINTER_NAME_HINTS.some((hint) => normalized.includes(hint));
-    });
-
-    if (!printerDraftName.value && hintedPrinter) {
-      printerDraftName.value = hintedPrinter;
-    }
-
-    if (!printerDraftName.value) {
-      try {
-        const defaultPrinter = await qz.printers.getDefault();
-        if (defaultPrinter && printerList.value.includes(defaultPrinter)) {
-          printerDraftName.value = defaultPrinter;
-        }
-      } catch {
-        // Ignore default-printer fetch failure; list is already loaded.
-      }
-    }
+    printerDraftId.value = suggestPrinterSelection(
+      printerList.value,
+      selectedPrinter.value,
+    );
   } catch (error) {
-    console.error("QZ printer loading error:", error);
-    qzErrorMessage.value = resolveQzErrorMessage(error);
-    showToast("QZ Tray belum terhubung. Cek pesan detail di setup printer.", "error", "❌");
+    console.error("Printer loading error:", error);
+    printerErrorMessage.value = resolvePrintErrorMessage(error, printPlatform);
+    showToast(
+      androidPrintMode
+        ? "Printer bluetooth belum siap. Cek detail di setup printer."
+        : "QZ Tray belum terhubung. Cek detail di setup printer.",
+      "error",
+      "ERR",
+    );
   } finally {
     loadingPrinters.value = false;
   }
 }
 
-function savePrinterSelection() {
-  selectedPrinterName.value = printerDraftName.value;
-  localStorage.setItem(PRINTER_STORAGE_KEY, printerDraftName.value);
+function savePrinterChoice() {
+  if (!draftPrinter.value) {
+    showToast("Pilih printer dulu", "error", "WARN");
+    return;
+  }
+
+  selectedPrinter.value = saveSelectedPrinter(draftPrinter.value);
   showPrinterSetup.value = false;
-  showToast("Printer berhasil disimpan", "success", "✅");
+  showToast("Printer berhasil disimpan", "success", "OK");
 }
 
-async function printReceiptWithQz(transaction, printerName) {
-  const qz = await ensureQzConnection();
-  const matchedPrinter = await qz.printers.find(printerName);
-  if (!matchedPrinter) {
-    throw new Error(`Printer "${printerName}" tidak ditemukan`);
+function printerOptionLabel(printer) {
+  return getPrinterDisplayName(printer);
+}
+
+function openDesktopPrinterBridge() {
+  launchQzTray();
+}
+
+async function testSelectedPrinter() {
+  if (!draftPrinter.value) {
+    showToast("Pilih printer dulu", "error", "WARN");
+    return;
   }
-  const config = qz.configs.create(matchedPrinter, { encoding: "CP437" });
-  const data = buildEscPosReceiptLines(transaction);
-  await qz.print(config, data);
+
+  printingReceipt.value = true;
+  try {
+    await printTest(draftPrinter.value);
+    showToast("Test print berhasil dikirim", "success", "OK");
+  } catch (error) {
+    console.error("Printer test error:", error);
+    showToast(resolvePrintErrorMessage(error, printPlatform), "error", "ERR");
+  } finally {
+    printingReceipt.value = false;
+  }
 }
 
 function printLastReceiptBrowser() {
   if (!lastTransaction.value) {
-    showToast("Data transaksi tidak ditemukan", "error", "❌");
+    showToast("Data transaksi tidak ditemukan", "error", "ERR");
     return;
   }
 
-  const printWindow = window.open("", "_blank", "width=420,height=700");
-  if (!printWindow) {
-    showToast("Popup diblokir browser, izinkan popup untuk print", "error", "⚠️");
-    return;
+  try {
+    printBrowserReceipt(lastTransaction.value);
+  } catch (error) {
+    showToast(resolvePrintErrorMessage(error, printPlatform), "error", "ERR");
   }
-
-  printWindow.document.open();
-  printWindow.document.write(buildReceiptHtml(lastTransaction.value));
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.onload = () => {
-    printWindow.onafterprint = () => printWindow.close();
-    printWindow.print();
-  };
 }
 
 async function printLastReceipt() {
   if (!lastTransaction.value) {
-    showToast("Data transaksi tidak ditemukan", "error", "❌");
+    showToast("Data transaksi tidak ditemukan", "error", "ERR");
     return;
   }
-  if (!selectedPrinterName.value) {
-    showToast("Set printer dulu sebelum print", "error", "⚠️");
+  if (!selectedPrinter.value) {
+    showToast("Set printer dulu sebelum print", "error", "WARN");
     await openPrinterSetup();
     return;
   }
 
   printingReceipt.value = true;
   try {
-    await printReceiptWithQz(lastTransaction.value, selectedPrinterName.value);
-    showToast("Struk berhasil dikirim ke printer", "success", "✅");
+    await printReceipt(lastTransaction.value, selectedPrinter.value);
+    showToast("Struk berhasil dikirim ke printer", "success", "OK");
   } catch (error) {
-    console.error("QZ print error:", error);
-    showToast("Gagal print via QZ Tray. Coba Print Browser.", "error", "❌");
+    console.error("Print error:", error);
+    showToast(resolvePrintErrorMessage(error, printPlatform), "error", "ERR");
   } finally {
     printingReceipt.value = false;
   }
 }
 
-function showToast(message, type = "success", icon = "✅") {
+function showToast(message, type = "success", icon = "OK") {
   toast.value = { show: true, message, type, icon };
   setTimeout(() => {
     toast.value.show = false;
@@ -682,11 +496,7 @@ function showToast(message, type = "success", icon = "✅") {
 }
 
 onMounted(() => {
-  const savedPrinter = localStorage.getItem(PRINTER_STORAGE_KEY);
-  if (savedPrinter) {
-    selectedPrinterName.value = savedPrinter;
-    printerDraftName.value = savedPrinter;
-  }
+  printerDraftId.value = selectedPrinter.value?.id || "";
   loadMenus();
 });
 </script>
@@ -753,6 +563,16 @@ onMounted(() => {
   }
 }
 
+:global(body.android-shell) .kasir-layout {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+  :global(body.android-shell) .kasir-layout {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+}
+
 .receipt-modal {
   max-width: 420px;
 }
@@ -788,6 +608,13 @@ onMounted(() => {
   margin-bottom: 1rem;
   color: var(--text-secondary);
   font-size: 0.88rem;
+}
+
+.setup-note {
+  margin-top: -0.2rem;
+  margin-bottom: 1rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
 
 .qz-error-box {
