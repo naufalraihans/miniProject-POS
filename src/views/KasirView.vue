@@ -127,6 +127,13 @@
           print tanpa pilih device lagi.
         </p>
 
+        <div v-if="qzErrorMessage" class="qz-error-box">
+          <p>{{ qzErrorMessage }}</p>
+          <button class="btn btn-sm btn-secondary" @click="launchQzTray">
+            Buka QZ Tray
+          </button>
+        </div>
+
         <div v-if="loadingPrinters" class="empty-state">
           <div class="empty-state-icon">⏳</div>
           <p class="empty-state-text">Mencari printer...</p>
@@ -174,10 +181,12 @@ const printerDraftName = ref("");
 const printerList = ref([]);
 const loadingPrinters = ref(false);
 const printingReceipt = ref(false);
+const qzErrorMessage = ref("");
 const toast = ref({ show: false, message: "", type: "success", icon: "✅" });
 const PRINTER_STORAGE_KEY = "kasir-qz-printer-name";
 const QZ_SCRIPT_ID = "qz-tray-script";
 const QZ_SCRIPT_SRC = "https://cdn.jsdelivr.net/npm/qz-tray@2.2.5/qz-tray.js";
+const PRINTER_NAME_HINTS = ["haoyin dt-58d", "haoyin", "dt-58d", "pos-58", "58d"];
 
 const cartTotal = computed(() =>
   cart.value.reduce((sum, item) => sum + item.price * item.qty, 0),
@@ -412,6 +421,22 @@ function buildReceiptHtml(transaction) {
 </html>`;
 }
 
+function resolveQzErrorMessage(error) {
+  const raw = String(error?.message || error || "");
+  const lower = raw.toLowerCase();
+
+  if (lower.includes("gagal memuat library qz tray")) {
+    return "Library QZ gagal dimuat. Cek koneksi internet/adblock lalu klik Muat Ulang.";
+  }
+  if (lower.includes("unable to establish connection with qz")) {
+    return "QZ Tray belum bisa dihubungi. Pastikan app QZ Tray aktif, lalu klik Muat Ulang.";
+  }
+  if (lower.includes("websocket")) {
+    return "Koneksi websocket QZ gagal. Coba restart QZ Tray lalu Muat Ulang.";
+  }
+  return `QZ error: ${raw || "Unknown error"}`;
+}
+
 function getQz() {
   return window.qz || null;
 }
@@ -531,13 +556,23 @@ function buildEscPosReceiptLines(transaction) {
   return rows;
 }
 
+function launchQzTray() {
+  const launcher = document.createElement("iframe");
+  launcher.style.display = "none";
+  launcher.src = "qz:launch";
+  document.body.appendChild(launcher);
+  setTimeout(() => launcher.remove(), 1200);
+}
+
 async function openPrinterSetup() {
   showPrinterSetup.value = true;
+  qzErrorMessage.value = "";
   await refreshPrinters();
 }
 
 async function refreshPrinters() {
   loadingPrinters.value = true;
+  qzErrorMessage.value = "";
   try {
     const qz = await ensureQzConnection();
     const printers = await qz.printers.find();
@@ -546,6 +581,15 @@ async function refreshPrinters() {
     if (!printerList.value.length) {
       showToast("Printer tidak ditemukan", "error", "⚠️");
       return;
+    }
+
+    const hintedPrinter = printerList.value.find((printer) => {
+      const normalized = String(printer).toLowerCase();
+      return PRINTER_NAME_HINTS.some((hint) => normalized.includes(hint));
+    });
+
+    if (!printerDraftName.value && hintedPrinter) {
+      printerDraftName.value = hintedPrinter;
     }
 
     if (!printerDraftName.value) {
@@ -560,7 +604,8 @@ async function refreshPrinters() {
     }
   } catch (error) {
     console.error("QZ printer loading error:", error);
-    showToast("QZ Tray belum terhubung. Jalankan QZ Tray dulu.", "error", "❌");
+    qzErrorMessage.value = resolveQzErrorMessage(error);
+    showToast("QZ Tray belum terhubung. Cek pesan detail di setup printer.", "error", "❌");
   } finally {
     loadingPrinters.value = false;
   }
@@ -575,7 +620,11 @@ function savePrinterSelection() {
 
 async function printReceiptWithQz(transaction, printerName) {
   const qz = await ensureQzConnection();
-  const config = qz.configs.create(printerName, { encoding: "CP437" });
+  const matchedPrinter = await qz.printers.find(printerName);
+  if (!matchedPrinter) {
+    throw new Error(`Printer "${printerName}" tidak ditemukan`);
+  }
+  const config = qz.configs.create(matchedPrinter, { encoding: "CP437" });
   const data = buildEscPosReceiptLines(transaction);
   await qz.print(config, data);
 }
@@ -739,6 +788,18 @@ onMounted(() => {
   margin-bottom: 1rem;
   color: var(--text-secondary);
   font-size: 0.88rem;
+}
+
+.qz-error-box {
+  margin-bottom: 1rem;
+  padding: 0.8rem;
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  display: grid;
+  gap: 0.6rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
 }
 
 .receipt-actions {
